@@ -1,18 +1,10 @@
-// --- IMPORTANT INSTALLATION STEP ---
-// This UI requires external libraries for charts and progress bars.
-// If you see a "Could not resolve" error during compilation,
-// it means a package is missing.
-// Please run this command in your /client terminal:
-// npm install recharts react-circular-progressbar @mui/x-date-pickers dayjs
-// -------------------------------------
-
 import React, { useState, useEffect, useCallback, useMemo, createContext, useContext, useRef } from 'react';
 import {
     Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
     Select, MenuItem, FormControl, InputLabel, IconButton, ThemeProvider, createTheme, CssBaseline,
     CircularProgress, Alert, Grid, Paper, Chip, List, ListItem,
     ListItemButton, ListItemIcon, ListItemText, Divider, Avatar, Container,
-    Tabs, Tab, Autocomplete, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+    Tabs, Tab, Autocomplete, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,FormControlLabel, Switch
 } from '@mui/material';
 import {
     Dashboard as DashboardIcon, Folder as FolderIcon, Timer as TimerIcon, Event as EventIcon,
@@ -30,11 +22,6 @@ import 'react-circular-progressbar/dist/styles.css';
 
 dayjs.extend(isBetween);
 
-
-
-
-
-// --- THEME ---
 const lightTheme = createTheme({
     palette: {
         mode: 'light',
@@ -50,7 +37,6 @@ const lightTheme = createTheme({
     }
 });
 
-// --- AUTH CONTEXT & PROVIDER ---
 const AuthContext = createContext(null);
 const useAuth = () => useContext(AuthContext);
 const AuthProvider = ({ children }) => {
@@ -58,7 +44,6 @@ const AuthProvider = ({ children }) => {
     const [token, setToken] = useState(localStorage.getItem('token'));
     const [loading, setLoading] = useState(true);
 
-    // Memoize API client to stop re-render loops
     const api = useMemo(() => ({
         get: async (url) => fetch(`http://localhost:3000${url}`, { headers: { 'Authorization': `Bearer ${token}` } }),
         post: async (url, data) => fetch(`http://localhost:3000${url}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(data) }),
@@ -95,7 +80,6 @@ const AuthProvider = ({ children }) => {
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// --- APP & MAIN ROUTER ---
 function App() {
     return (
         <ThemeProvider theme={lightTheme}>
@@ -132,7 +116,7 @@ function AuthScreen() {
       <Paper
         sx={{
           width: '100%',
-          maxWidth: 720,         // take more space
+          maxWidth: 720, 
           p: { xs: 3, sm: 5 },
           borderRadius: 3,
           boxShadow: '0px 8px 24px rgba(0,0,0,0.08)',
@@ -234,7 +218,7 @@ function RegisterForm({ switchToLogin }) {
     );
 }
 
-// --- MAIN LAYOUT & PAGE ROUTING ---
+
 function Layout() {
     const { user, logout } = useAuth();
     const [currentPage, setCurrentPage] = useState('dashboard');
@@ -287,8 +271,9 @@ function Layout() {
     );
 }
 
-// --- PAGES & COMPONENTS ---
 
+
+//Main Functions
 function MemberDashboard() {
   const { user, api } = useAuth();
   const [stats, setStats] = useState({
@@ -302,7 +287,6 @@ function MemberDashboard() {
     setLoading(true);
     const startOfWeek = dayjs().startOf('week').toISOString();
     try {
-      // Weekly hours (from timesheet or fallback)
       let weeklyHours = 0;
       const tsRes = await api.get(`/api/timesheets/my-sheets?startDate=${startOfWeek}&endDate=${dayjs().endOf('week').toISOString()}`);
       if (tsRes.ok) {
@@ -316,14 +300,12 @@ function MemberDashboard() {
         }
       }
 
-      // Live add running timer seconds until next autosave tick
       const running = loadActiveTimer();
       if (running) {
         const extra = (Date.now() - new Date(running.lastSavedAt || running.start).getTime()) / 3600_000;
         weeklyHours += Math.max(0, extra);
       }
 
-      // Leave stats
       let pendingLeaveRequests = 0;
       let approvedLeaveDays = 0;
       const leaveRes = await api.get('/api/leave');
@@ -344,7 +326,7 @@ function MemberDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-    const id = setInterval(fetchDashboardData, 60_000); // refresh every minute
+    const id = setInterval(fetchDashboardData, 60_000); 
     return () => clearInterval(id);
   }, [fetchDashboardData]);
 
@@ -482,6 +464,7 @@ function ProjectsPage() {
     );
 }
 
+
 function ApprovalsPage() {
   const { api } = useAuth();
   const [projectSubmissions, setProjectSubmissions] = useState([]);
@@ -489,7 +472,6 @@ function ApprovalsPage() {
   const [tab, setTab] = useState(0);
   const [dialog, setDialog] = useState({ open: false, item: null });
 
-  // local fallbacks (shared origin → Admin sees Employee’s local flags during dev)
   const VIRTUAL_STATUS_KEY = 'protime_virtual_task_status_v1';
   const TASK_PROGRESS_KEY  = 'protime_task_progress_v1';
   const loadVirtualStatus  = () => { try { return JSON.parse(localStorage.getItem(VIRTUAL_STATUS_KEY) || '{}'); } catch { return {}; } };
@@ -526,7 +508,6 @@ function ApprovalsPage() {
       });
     };
 
-    // 1) Try direct/pattern endpoints (tasks + projects)
     const direct = await getJson([
       '/api/projects/pending-approvals',
       '/api/tasks/pending-approvals',
@@ -545,7 +526,6 @@ function ApprovalsPage() {
       }
     }
 
-    // 2) Scan projects/tasks
     const allProjects = await getJson(['/api/projects/all', '/api/projects']) || [];
     for (const p of allProjects) {
       if (needsApproval(p)) add({ project: p, task: { name: 'General' }, virtual: true });
@@ -561,7 +541,6 @@ function ApprovalsPage() {
       for (const t of tasks) if (needsApproval(t)) add({ project: p, task: t });
     }
 
-    // 3) Fill in spent hours from server time entries (last 60 days)
     const start = dayjs().subtract(60, 'day').startOf('day').toISOString();
     const end   = dayjs().endOf('day').toISOString();
     const byPid = new Map(items.map(i => [i.projectId, 0]));
@@ -578,7 +557,6 @@ function ApprovalsPage() {
     }
     let out = items.map(i => ({ ...i, spentHrs: byPid.get(i.projectId) || 0 }));
 
-    // 4) Fallback: include local virtual submissions marked Done
     const vmap = loadVirtualStatus();
     for (const [pid, st] of Object.entries(vmap)) {
       if (/done/i.test(st)) {
@@ -587,9 +565,8 @@ function ApprovalsPage() {
       }
     }
 
-    // de-duplicate by projectId+taskId
     const seen = new Set();
-    out = [...out, ...items.filter(() => false)]; // keep 'out' variable in scope
+    out = [...out, ...items.filter(() => false)]; 
     out = (out.length ? out : items).filter(i => {
       const key = `${i.projectId}|${i.taskId || 'virt'}`;
       if (seen.has(key)) return false;
@@ -598,7 +575,6 @@ function ApprovalsPage() {
 
     setProjectSubmissions(out);
 
-    // Leaves
     try {
       const leaves = await getJson(['/api/leave/pending','/api/leave?status=Pending','/api/leave/all?status=Pending']) || [];
       setPendingLeave(leaves.filter(l => norm(l.status) === 'pending'));
@@ -615,7 +591,6 @@ function ApprovalsPage() {
     const approve = decision === 'approve';
     const status = approve ? 'Completed' : 'In Progress';
 
-    // Try task-level first
     if (!virtual && taskId) {
       const attempts = [
         () => api.put(`/api/projects/${projectId}/tasks/${taskId}`, { status }),
@@ -626,7 +601,6 @@ function ApprovalsPage() {
       for (const call of attempts) { try { const r = await call(); if (r.ok) { await fetchAllApprovals(); return; } } catch {} }
     }
 
-    // Project-level (mirror Employee Kanban too)
     const projAttempts = [
       () => api.put(`/api/projects/${projectId}`, { status }),
       () => api.put(`/api/projects/${projectId}/status`, { status }),
@@ -635,14 +609,12 @@ function ApprovalsPage() {
     let ok = false;
     for (const call of projAttempts) { try { const r = await call(); if (r.ok) { ok = true; break; } } catch {} }
 
-    // Always update local virtual flag so Employee board flips to Completed immediately
     const m = loadVirtualStatus();
     m[projectId] = approve ? 'Completed' : 'In Progress';
     saveVirtualStatus(m);
 
     await fetchAllApprovals();
     if (!ok) {
-      // if server didn't accept, at least remove from queue locally on approve
       setProjectSubmissions((prev) => prev.filter(x => x.projectId !== projectId || x.taskId !== taskId));
     }
   };
@@ -757,8 +729,9 @@ function ReportsPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [approvedOnly, setApprovedOnly] = useState(false);
 
-  const DEFAULT_HOURLY_RATE = 15; // <-- NEW: default pay rate
+  const DEFAULT_HOURLY_RATE = 600;
 
   useEffect(() => {
     (async () => {
@@ -768,6 +741,14 @@ function ReportsPage() {
       if (usersRes.ok) setUsers(await usersRes.json());
     })();
   }, [api]);
+
+  useEffect(() => {
+    const p = consumeReportPrefill();
+    if (p) {
+      if (p.projectId) setSelectedProject(p.projectId);
+      if (p.startDate && p.endDate) setDateRange([dayjs(p.startDate), dayjs(p.endDate)]);
+    }
+  }, []);
 
   const projectById = useMemo(() => {
     const m = {};
@@ -781,7 +762,15 @@ function ReportsPage() {
     return m;
   }, [users]);
 
-  // NEW: default to $15/hr if user has no stored rate
+  const completedSet = useMemo(() => {
+    const s = new Set();
+    (projects || []).forEach(p => {
+      const st = (p.status || '').toLowerCase();
+      if (st === 'completed') s.add(p._id);
+    });
+    return s;
+  }, [projects]);
+
   const getHourlyRate = (u) => {
     const r = Number(u?.hourlyRate ?? u?.rate ?? u?.salaryPerHour ?? u?.payRate);
     return Number.isFinite(r) && r > 0 ? r : DEFAULT_HOURLY_RATE;
@@ -791,7 +780,6 @@ function ReportsPage() {
     const startISO = dateRange[0]?.toISOString();
     const endISO = dateRange[1]?.toISOString();
 
-    // key = `${projectId}|${userId}` -> aggregate hours
     const agg = new Map();
     const add = (pid, pname, uid, uname, hoursFloat) => {
       if (!pid || !uid) return;
@@ -802,7 +790,6 @@ function ReportsPage() {
     };
 
     let loaded = false;
-    // Preferred consolidated endpoint
     try {
       const url = `/api/timesheets/report?project=${selectedProject || ''}&startDate=${startISO}&endDate=${endISO}`;
       const r = await api.get(url);
@@ -821,7 +808,6 @@ function ReportsPage() {
       }
     } catch {}
 
-    // Fallback: raw time-entries
     if (!loaded) {
       const tries = [
         `/api/time-entries?startDate=${startISO}&endDate=${endISO}${selectedProject ? `&project=${selectedProject}` : ''}`,
@@ -846,30 +832,31 @@ function ReportsPage() {
       }
     }
 
-    // Build payroll rows
     const out = [];
     for (const { projectId, projectName, userId, userName, tookHrs } of agg.values()) {
-      const rate = getHourlyRate(userById[userId]);            // <-- uses default $15/hr
+      const rate = getHourlyRate(userById[userId]);
       out.push({
+        projectId,
         projectName,
         employeeName: userName,
         reqHrs: Number(projectById[projectId]?.budgetedHours || 0) || 0,
         tookHrs: Number(tookHrs || 0),
         rate: Number(rate || 0),
-        total: Number((tookHrs || 0) * (rate || 0)),           // <-- e.g., 3h * $15 = $45
+        total: Number((tookHrs || 0) * (rate || 0)),
       });
     }
 
-    // Optional filter by project name if selected
+    let finalRows = out;
     if (selectedProject) {
       const pname = projectById[selectedProject]?.name;
-      setRows(out.filter((r) => r.projectName === (pname || r.projectName)));
-    } else {
-      setRows(out);
+      finalRows = finalRows.filter((r) => r.projectName === (pname || r.projectName));
     }
-  }, [api, dateRange, selectedProject, projectById, userById]);
+    if (approvedOnly) {
+      finalRows = finalRows.filter((r) => completedSet.has(r.projectId));
+    }
+    setRows(finalRows);
+  }, [api, dateRange, selectedProject, projectById, userById, approvedOnly, completedSet]);
 
-  // Load on filter change
   useEffect(() => {
     setLoading(true);
     computeRows().finally(() => setLoading(false));
@@ -881,7 +868,7 @@ function ReportsPage() {
     setExporting(true);
     try {
       const fileName = `project_payroll_${dayjs(dateRange[0]).format('YYYYMMDD')}_${dayjs(dateRange[1]).format('YYYYMMDD')}.csv`;
-      let csv = 'Project Name,Employee Name,Time Required (hrs),Time Took (hrs),Wage/hr (USD),Total Pay (USD)\n';
+      let csv = 'Project Name,Employee Name,Time Required (hrs),Time Worked (hrs),Wage/hr,Total Pay\n';
       rows.forEach((r) => {
         csv += [
           `"${r.projectName}"`,
@@ -916,7 +903,11 @@ function ReportsPage() {
             {projects.map((p) => (<MenuItem key={p._id} value={p._id}>{p.name}</MenuItem>))}
           </Select>
         </FormControl>
-        <Chip label={`Default Wage: $${DEFAULT_HOURLY_RATE}/hr`} />
+        <Chip label={`Default Wage: taka ${DEFAULT_HOURLY_RATE}/hr`} />
+        <FormControlLabel
+          control={<Switch checked={approvedOnly} onChange={(e) => setApprovedOnly(e.target.checked)} />}
+          label="Approved only"
+        />
         <Button variant="contained" onClick={handleExportCsv} disabled={exporting || loading}>
           {exporting ? 'Exporting…' : 'Export Payroll CSV'}
         </Button>
@@ -1020,7 +1011,6 @@ function MyTimesheetPage() {
     };
     fetchInitialData();
 
-    // live refresh every minute while page is open
     const id = setInterval(() => fetchTimesheetForWeek(currentWeek, projects), 60_000);
     return () => clearInterval(id);
   }, [api, currentWeek, fetchTimesheetForWeek, user?._id]);
@@ -1204,9 +1194,7 @@ function MyLeavePage() {
   );
 }
 
-// --- Employee Kanban with Start/Pause timer (UPDATED) ---
 
-// ===== EmployeeKanban (FINAL) =====
 const KANBAN_COLUMNS = ['Not Started', 'In Progress', 'Done', 'Completed'];
 
 function EmployeeKanban() {
@@ -1214,6 +1202,8 @@ function EmployeeKanban() {
   const [projects, setProjects] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [tick, setTick] = React.useState(0);
+
+  const warnedRef = React.useRef({});
 
   React.useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000);
@@ -1261,7 +1251,9 @@ function EmployeeKanban() {
         }
       }
       setProjects(assigned || []);
-    } catch { } finally { setLoading(false); }
+    } catch (e) {
+      console.error('Failed to fetch projects', e);
+    } finally { setLoading(false); }
   }, [api, user?._id]);
 
   React.useEffect(() => { refreshAssignedProjects(); }, [refreshAssignedProjects]);
@@ -1301,26 +1293,83 @@ function EmployeeKanban() {
   };
 
   const STARTED_PROJECTS_KEY = 'protime_started_projects_v1';
-  const getStartedProjects = () => { try { return new Set(JSON.parse(localStorage.getItem(STARTED_PROJECTS_KEY) || '[]')); } catch { return new Set(); } };
+  const getStartedProjects = () => {
+    try { return new Set(JSON.parse(localStorage.getItem(STARTED_PROJECTS_KEY) || '[]')); }
+    catch { return new Set(); }
+  };
   const addStartedProject = (pid) => {
     const s = getStartedProjects(); s.add(pid);
     localStorage.setItem(STARTED_PROJECTS_KEY, JSON.stringify([...s]));
   };
 
   const VIRTUAL_STATUS_KEY = 'protime_virtual_task_status_v1';
-  const loadVirtualStatus = () => { try { return JSON.parse(localStorage.getItem(VIRTUAL_STATUS_KEY) || '{}'); } catch { return {}; } };
+  const loadVirtualStatus = () => {
+    try { return JSON.parse(localStorage.getItem(VIRTUAL_STATUS_KEY) || '{}'); }
+    catch { return {}; }
+  };
   const setVirtualStatus = (projectId, status) => {
     const m = loadVirtualStatus();
     m[projectId] = status;
     localStorage.setItem(VIRTUAL_STATUS_KEY, JSON.stringify(m));
     setTick((t) => t + 1);
   };
-  const getVirtualStatus = (projectId) => loadVirtualStatus()[projectId] || null;
+  const getVirtualStatus = (projectId) => loadVirtualStatus()[projectId] || 'Not Started';
+
+  const notify30s = async (title, body) => {
+    try {
+      if (!('Notification' in window)) return;
+      if (Notification.permission === 'granted') {
+        new Notification(title, { body });
+        return;
+      }
+      if (Notification.permission !== 'denied') {
+        const perm = await Notification.requestPermission();
+        if (perm === 'granted') new Notification(title, { body });
+      }
+    } catch {}
+  };
+
+
+  React.useEffect(() => {
+    const t = loadActiveTimer();
+    if (!t) return;
+
+    const key = `${t.projectId}|${t.taskId || `proj:${t.projectId}`}`;
+
+    const card = cards.find(
+      c => c._id === (t.taskId || `proj:${t.projectId}`) && c.__projectId === t.projectId
+    );
+
+    const prog = getProgressFor(t.taskId || `proj:${t.projectId}`);
+    const plannedMin =
+      (prog.plannedMinutes != null)
+        ? prog.plannedMinutes
+        : (card?.__plannedMinutesFromProject ?? card?.estimatedMinutes ?? (card?.estimatedHours ? card.estimatedHours * 60 : 60) ?? 60);
+
+    const plannedMs = Number(plannedMin || 60) * 60_000;
+
+    const last = t.lastSavedAt ? new Date(t.lastSavedAt).getTime()
+               : t.start       ? new Date(t.start).getTime()
+                               : Date.now();
+
+    const extraMs = Date.now() - last;
+    const spentMs = (prog.accumulatedMs || 0) + Math.max(0, extraMs);
+    const remainingMs = plannedMs - spentMs;
+
+    if (remainingMs <= 30_000 && !warnedRef.current[key]) {
+      warnedRef.current[key] = true;
+      notify30s('⏳ 30 seconds remaining', `${t.taskName || 'Task'} (${t.projectName || 'Project'}) is about to hit planned time.`);
+    }
+  }, [tick, cards]);
 
   const handleStart = async (card) => {
     const running = loadActiveTimer();
-    if (running && !projects.some(p => p._id === running.projectId)) clearActiveTimer();
-    else if (running) { alert('Pause the running timer first.'); return; }
+    if (running && !projects.some(p => p._id === running.projectId)) {
+      clearActiveTimer();
+    } else if (running) {
+      alert('Pause the running timer first.');
+      return;
+    }
 
     const startedProjects = getStartedProjects();
     const progress = getProgressFor(card._id);
@@ -1334,6 +1383,7 @@ function EmployeeKanban() {
       if (!card.__virtual && !['In Progress', 'Done', 'Completed'].includes(card.status)) {
         await api.put(`/api/projects/${card.__projectId}/tasks/${card._id}`, { status: 'In Progress' }).catch(()=>{});
       }
+
       addStartedProject(card.__projectId);
 
       const plannedMinutes =
@@ -1342,6 +1392,9 @@ function EmployeeKanban() {
           : (card.__plannedMinutesFromProject ?? (card.estimatedMinutes || (card.estimatedHours ? card.estimatedHours * 60 : 60)));
 
       setProgressFor(card._id, { plannedMinutes });
+
+
+      warnedRef.current = {};
 
       saveActiveTimer({
         projectId: card.__projectId,
@@ -1354,7 +1407,9 @@ function EmployeeKanban() {
       });
 
       setTick((t) => t + 1);
-    } catch {}
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handlePause = async (card) => {
@@ -1376,56 +1431,54 @@ function EmployeeKanban() {
         description: 'Timer segment',
         isBreak: false,
       });
-    } catch {}
+    } catch (e) {
+      console.error('Timer save failed', e);
+    }
     clearActiveTimer();
     setTick((x) => x + 1);
   };
-
-    const submitForApproval = async (card) => {
+  const submitForApproval = async (card) => {
     if (isTaskRunning(card)) await handlePause(card);
 
-    // real task → mark as Done (or Submitted), then also mirror locally
     if (!card.__virtual) {
-        const tries = [
+      const tries = [
         () => api.put(`/api/projects/${card.__projectId}/tasks/${card._id}`, { status: 'Submitted for Approval' }),
         () => api.put(`/api/tasks/${card._id}/status`, { status: 'Submitted for Approval' }),
         () => api.post(`/api/tasks/${card._id}/status`, { status: 'Submitted for Approval' }),
         () => api.put(`/api/projects/${card.__projectId}/tasks/${card._id}`, { status: 'Done' }),
-        ];
-        for (const call of tries) { try { const r = await call(); if (r.ok) break; } catch {} }
-        // mirror to local so Admin page can see instantly
-        setVirtualStatus(card.__projectId, 'Done');
-        await refreshAssignedProjects();
-        return;
+      ];
+      for (const call of tries) { try { const r = await call(); if (r.ok) break; } catch {} }
+      setVirtualStatus(card.__projectId, 'Done');
+      await refreshAssignedProjects();
+      return;
     }
 
-    // virtual card → try to create a real task, else mark project; always mirror locally
     let ok = false;
     try {
-        const res = await api.post(`/api/projects/${card.__projectId}/tasks`, {
+      const res = await api.post(`/api/projects/${card.__projectId}/tasks`, {
         name: card.name || 'General',
         status: 'Submitted for Approval',
         estimatedMinutes:
-            getProgressFor(card._id).plannedMinutes ??
-            card.__plannedMinutesFromProject ?? 60,
-        });
-        ok = res.ok;
+          getProgressFor(card._id).plannedMinutes ??
+          card.__plannedMinutesFromProject ?? 60,
+      });
+      ok = res.ok;
     } catch {}
 
     if (!ok) {
-        const body = { status: 'Submitted for Approval' };
-        const fallback = [
+      const body = { status: 'Submitted for Approval' };
+      const fallback = [
         () => api.put(`/api/projects/${card.__projectId}`, body),
         () => api.put(`/api/projects/${card.__projectId}/status`, body),
         () => api.post(`/api/projects/${card.__projectId}/status`, body),
-        ];
-        for (const call of fallback) { try { const r = await call(); if (r.ok) { ok = true; break; } } catch {} }
+      ];
+      for (const call of fallback) { try { const r = await call(); if (r.ok) { ok = true; break; } } catch {} }
     }
 
-    // mirror to local so Admin page picks it up immediately
     setVirtualStatus(card.__projectId, 'Done');
     await refreshAssignedProjects();
-    };
+  };
+
 
 
   const tasksByCol = React.useMemo(() => {
@@ -1530,7 +1583,6 @@ function EmployeeKanban() {
 
 
 
-// --- DIALOGS ---
 function ProjectDialog({ open, onClose, onSave, project, allUsers }) {
     const [name, setName] = useState('');
     const [budget, setBudget] = useState('');
@@ -1620,7 +1672,6 @@ function TimeEntryDialog({ open, onClose, onStarted, projects, entry }) {
   const handleStart = () => {
     if (!projectId) { alert('Please select a project.'); return; }
     const proj = projects.find(p => p._id === projectId);
-    // Start the shared timer (visible on the top bar & Kanban)
     saveActiveTimer({
       projectId,
       projectName: proj?.name || 'Project',
@@ -1655,7 +1706,6 @@ function TimeEntryDialog({ open, onClose, onStarted, projects, entry }) {
 }
 
 
-// --- WIDGET ---
 function KpiCard({ title, value, icon }) {
     return (
         <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%' }}>
@@ -1670,15 +1720,10 @@ function KpiCard({ title, value, icon }) {
 
 export default App;
 
-// --- TIMER HELPERS (replace existing helpers block) ---
 export const ACTIVE_TIMER_KEY = 'protime_active_timer_v2';
 export const TASK_PROGRESS_KEY = 'protime_task_progress_v1';
-
-// Active (currently running) timer
-
 export const clearActiveTimer = () => localStorage.removeItem(ACTIVE_TIMER_KEY);
 
-// Per-task cumulative progress (so Pause never “resets”)
 export const loadTaskProgress = () => {
   try {
     return JSON.parse(localStorage.getItem(TASK_PROGRESS_KEY) || '{}');
@@ -1726,4 +1771,22 @@ export const saveActiveTimer = (t) => {
       t.lastSavedAt instanceof Date ? t.lastSavedAt.toISOString() : t.lastSavedAt,
   };
   localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify(out));
+};
+
+
+export const REPORT_PREFILL_KEY = 'protime_report_prefill_v1';
+
+export const setReportPrefill = (payload) => {
+  localStorage.setItem(REPORT_PREFILL_KEY, JSON.stringify(payload));
+};
+
+export const consumeReportPrefill = () => {
+  try {
+    const raw = localStorage.getItem(REPORT_PREFILL_KEY);
+    if (!raw) return null;
+    localStorage.removeItem(REPORT_PREFILL_KEY);
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 };
